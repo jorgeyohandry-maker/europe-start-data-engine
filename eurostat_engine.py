@@ -170,19 +170,24 @@ def main():
                 m,
                 retrieved_at
             )
-if not rows:
-    print(
-        f"WARNING: {m['indicator']} returned "
-        f"0 parsed rows."
-    )
-    print(
-        f"Dataset: {m['dataset_code']}"
-    )
-    print(
-        f"Parameters: {params}"
-    )
-            # Safety filter:
-            # retain only Europe Start countries.
+            rows = jsonstat_to_rows(
+                payload,
+                m,
+                retrieved_at
+            )
+
+            if not rows:
+                print(
+                    f"WARNING: {m['indicator']} "
+                    f"returned 0 parsed rows."
+                )
+                print(
+                    f"Dataset: {m['dataset_code']}"
+                )
+                print(
+                    f"Parameters: {params}"
+                )
+
             rows = [
                 r for r in rows
                 if r.get("geo") in countries
@@ -194,6 +199,20 @@ if not rows:
                 f"OK {m['indicator']} -> "
                 f"{m['dataset_code']} "
                 f"({len(rows)} rows)"
+            )
+
+        except Exception as e:
+
+            errors.append(
+                (
+                    m["indicator"],
+                    str(e)
+                )
+            )
+
+            print(
+                f"ERR {m['indicator']} -> "
+                f"{m['dataset_code']}: {e}"
             )
 
         except Exception as e:
