@@ -270,29 +270,50 @@ else:
     # Generate run manifest.
     manifest = OUT_DIR / "last_run_manifest.json"
 
-    manifest.write_text(
-        json.dumps(
-            {
-                "engine_version": "0.2",
-                "retrieved_at": retrieved_at,
-                "source": "Eurostat Statistics API",
-                "countries": sorted(countries),
-                "verified_mappings_attempted": len(eligible),
-                "rows_written": len(all_rows),
-                "skipped": skipped,
-                "errors": errors,
-                "live_data_written_to_base44": False,
-                "note": (
-                    "This run creates an external "
-                    "import artifact; it does not "
-                    "modify Base44."
-                )
-            },
-            indent=2,
-            ensure_ascii=False
-        ),
-        encoding="utf-8"
-    )
+   manifest.write_text(
+    json.dumps(
+        {
+            "engine_version": "0.2",
+            "retrieved_at": retrieved_at,
+            "source": "Eurostat Statistics API",
+            "countries": sorted(countries),
+
+            "verified_mappings_attempted": len(eligible),
+
+            "expected_indicators": sorted(
+                expected_indicators
+            ),
+
+            "actual_indicators": sorted(
+                actual_indicators
+            ),
+
+            "missing_indicators": missing_indicators,
+
+            "quality_gate": (
+                "FAIL"
+                if missing_indicators
+                else "PASS"
+            ),
+
+            "rows_written": len(all_rows),
+
+            "skipped": skipped,
+            "errors": errors,
+
+            "live_data_written_to_base44": False,
+
+            "note": (
+                "This run creates an external "
+                "import artifact; it does not "
+                "modify Base44."
+            )
+        },
+        indent=2,
+        ensure_ascii=False
+    ),
+    encoding="utf-8"
+)
 
     print()
     print("---------------------------------")
