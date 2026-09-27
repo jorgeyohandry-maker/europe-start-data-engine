@@ -94,76 +94,187 @@ def jsonstat_to_rows(payload, mapping, retrieved_at):
     return rows
 
 def main():
+
     mappings = load_csv(MAPPING_FILE)
-    countries = {r["iso2"] for r in load_csv(COUNTRY_FILE)}
+
+    countries = {
+        r["iso2"].strip().upper()
+        for r in load_csv(COUNTRY_FILE)
+        if r.get("iso2")
+    }
+
+    if not countries:
+        raise SystemExit(
+            "No valid ISO2 countries found in countries.csv."
+        )
 
     eligible = []
     skipped = []
+
     for m in mappings:
+
         if m["status"].strip().upper() != "VERIFIED":
-            skipped.append((m["indicator"], "mapping status is not VERIFIED"))
+            skipped.append(
+                (m["indicator"], "mapping status is not VERIFIED")
+            )
             continue
+
         if not m["dataset_code"].strip():
-            skipped.append((m["indicator"], "missing dataset_code"))
+            skipped.append(
+                (m["indicator"], "missing dataset_code")
+            )
             continue
+
         eligible.append(m)
 
     if not eligible:
-        raise SystemExit("No VERIFIED mappings available. Update mappings.csv first.")
+        raise SystemExit(
+            "No VERIFIED mappings available. "
+            "Update mappings.csv first."
+        )
 
     all_rows = []
     errors = []
+
     retrieved_at = now_utc()
 
+    print("Europe Start Eurostat Data Engine")
+    print("---------------------------------")
+    print(f"Countries: {', '.join(sorted(countries))}")
+    print(f"Verified mappings: {len(eligible)}")
+    print()
+
     for m in eligible:
+
         try:
-            # query_params_json contains the exact verified Eurostat filters.
-           params = json.loads(m["query_params_json"])
 
-params.setdefault("lang", "EN")
+            # query_params_json contains the exact
+            # verified Eurostat filters.
+            params = json.loads(
+                m["query_params_json"]
+            )
 
-# Restrict the request to Europe Start controlled-test countries.
-params["geo"] = sorted(countries)
+            params.setdefault("lang", "EN")
 
-payload = api_get(m["dataset_code"], params)
-            rows = jsonstat_to_rows(payload, m, retrieved_at)
+            # Restrict the API request to the
+            # Europe Start controlled-test countries.
+            params["geo"] = sorted(countries)
 
-            # If geo exists, retain only Europe Start countries.
-            if "geo" in params:
-                rows = [r for r in rows if r.get("geo") in countries]
+            payload = api_get(
+                m["dataset_code"],
+                params
+            )
+
+            rows = jsonstat_to_rows(
+                payload,
+                m,
+                retrieved_at
+            )
+
+            # Safety filter:
+            # retain only Europe Start countries.
+            rows = [
+                r for r in rows
+                if r.get("geo") in countries
+            ]
 
             all_rows.extend(rows)
-            print(f"OK  {m['indicator']} -> {m['dataset_code']} ({len(rows)} rows)")
+
+            print(
+                f"OK {m['indicator']} -> "
+                f"{m['dataset_code']} "
+                f"({len(rows)} rows)"
+            )
+
         except Exception as e:
-            errors.append((m["indicator"], str(e)))
-            print(f"ERR {m['indicator']} -> {m['dataset_code']}: {e}")
 
-    out = OUT_DIR / f"europe_start_eurostat_{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.csv"
+            errors.append(
+                (
+                    m["indicator"],
+                    str(e)
+                )
+            )
+
+            print(
+                f"ERR {m['indicator']} -> "
+                f"{m['dataset_code']}: {e}"
+            )
+
+    # Generate CSV artifact.
     if all_rows:
-        keys = sorted({k for r in all_rows for k in r})
-        with out.open("w", encoding="utf-8-sig", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=keys)
-            w.writeheader()
-            w.writerows(all_rows)
 
+        out = OUT_DIR / (
+            "europe_start_eurostat_"
+            f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.csv"
+        )
+
+        keys = sorted(
+            {
+                key
+                for row in all_rows
+                for key in row
+            }
+        )
+
+        with out.open(
+            "w",
+            encoding="utf-8-sig",
+            newline=""
+        ) as f:
+
+            writer = csv.DictWriter(
+                f,
+                fieldnames=keys
+            )
+
+            writer.writeheader()
+            writer.writerows(all_rows)
+
+    else:
+
+        out = None
+
+    # Generate run manifest.
     manifest = OUT_DIR / "last_run_manifest.json"
-    manifest.write_text(json.dumps({
-        "engine_version": "0.1",
-        "retrieved_at": retrieved_at,
-        "source": "Eurostat Statistics API",
-        "verified_mappings_attempted": len(eligible),
-        "rows_written": len(all_rows),
-        "skipped": skipped,
-        "errors": errors,
-        "live_data_written_to_base44": False,
-        "note": "This run creates an import artifact; it does not modify Base44."
-    }, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print(f"\nWrote: {out}")
+    manifest.write_text(
+        json.dumps(
+            {
+                "engine_version": "0.2",
+                "retrieved_at": retrieved_at,
+                "source": "Eurostat Statistics API",
+                "countries": sorted(countries),
+                "verified_mappings_attempted": len(eligible),
+                "rows_written": len(all_rows),
+                "skipped": skipped,
+                "errors": errors,
+                "live_data_written_to_base44": False,
+                "note": (
+                    "This run creates an external "
+                    "import artifact; it does not "
+                    "modify Base44."
+                )
+            },
+            indent=2,
+            ensure_ascii=False
+        ),
+        encoding="utf-8"
+    )
+
+    print()
+    print("---------------------------------")
+
+    if out:
+        print(f"Wrote: {out}")
+    else:
+        print("No CSV generated because no rows were returned.")
+
     print(f"Rows: {len(all_rows)}")
     print(f"Errors: {len(errors)}")
+
     if errors:
         sys.exit(2)
+
 
 if __name__ == "__main__":
     main()
