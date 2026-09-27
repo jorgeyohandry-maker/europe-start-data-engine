@@ -170,7 +170,17 @@ def main():
                 m,
                 retrieved_at
             )
-
+if not rows:
+    print(
+        f"WARNING: {m['indicator']} returned "
+        f"0 parsed rows."
+    )
+    print(
+        f"Dataset: {m['dataset_code']}"
+    )
+    print(
+        f"Parameters: {params}"
+    )
             # Safety filter:
             # retain only Europe Start countries.
             rows = [
