@@ -15,87 +15,197 @@ IMPORTANT:
 - The engine never invents dataset codes or dimension filters.
 """
 
-import csv, json, sys, time
+import csv
+import json
+import sys
 from pathlib import Path
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
-BASE_URL = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/"
+
+BASE_URL = (
+    "https://ec.europa.eu/eurostat/api/"
+    "dissemination/statistics/1.0/data/"
+)
+
 ROOT = Path(__file__).resolve().parent
 MAPPING_FILE = ROOT / "mappings.csv"
 COUNTRY_FILE = ROOT / "countries.csv"
 OUT_DIR = ROOT / "output"
+
 OUT_DIR.mkdir(exist_ok=True)
 
+
 def now_utc():
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(timezone.utc).replace(
+        microsecond=0
+    ).isoformat()
+
 
 def load_csv(path):
-    with path.open("r", encoding="utf-8-sig", newline="") as f:
+    with path.open(
+        "r",
+        encoding="utf-8-sig",
+        newline=""
+    ) as f:
         return list(csv.DictReader(f))
+
 
 def api_get(dataset, params):
     query = urlencode(params, doseq=True)
     url = BASE_URL + dataset + "?" + query
-    req = Request(url, headers={"User-Agent": "EuropeStart-EurostatEngine/0.1"})
-    with urlopen(req, timeout=60) as r:
-        return json.loads(r.read().decode("utf-8"))
+
+    req = Request(
+        url,
+        headers={
+            "User-Agent": "EuropeStart-EurostatEngine/0.2"
+        }
+    )
+
+    with urlopen(req, timeout=60) as response:
+        return json.loads(
+            response.read().decode("utf-8")
+        )
+
 
 def ordered_values(dim):
-    idx = dim.get("category", {}).get("index", {})
+    idx = dim.get(
+        "category",
+        {}
+    ).get(
+        "index",
+        {}
+    )
+
     if isinstance(idx, dict):
-        return [k for k, _ in sorted(idx.items(), key=lambda kv: kv[1])]
+        return [
+            key
+            for key, _ in sorted(
+                idx.items(),
+                key=lambda kv: kv[1]
+            )
+        ]
+
     if isinstance(idx, list):
         return idx
-    return list(dim.get("category", {}).get("label", {}).keys())
 
-def jsonstat_to_rows(payload, mapping, retrieved_at):
+    return list(
+        dim.get(
+            "category",
+            {}
+        ).get(
+            "label",
+            {}
+        ).keys()
+    )
+
+
+def jsonstat_to_rows(
+    payload,
+    mapping,
+    retrieved_at
+):
     dims = payload.get("id", [])
     sizes = payload.get("size", [])
+
     if not dims or not sizes:
-        raise ValueError("Eurostat response has no usable dimensions.")
+        raise ValueError(
+            "Eurostat response has no usable dimensions."
+        )
 
     values = payload.get("value", {})
+
     if isinstance(values, list):
-        flat = {i: v for i, v in enumerate(values) if v is not None}
+        flat = {
+            i: v
+            for i, v in enumerate(values)
+            if v is not None
+        }
     else:
         flat = values
 
-    dim_values = {d: ordered_values(payload["dimension"][d]) for d in dims}
+    dim_values = {
+        d: ordered_values(
+            payload["dimension"][d]
+        )
+        for d in dims
+    }
+
     rows = []
 
-    def unravel(n, sizes):
-        coords = [0] * len(sizes)
-        for i in range(len(sizes) - 1, -1, -1):
-            coords[i] = n % sizes[i]
-            n //= sizes[i]
+    def unravel(n, dimension_sizes):
+        coords = [0] * len(dimension_sizes)
+
+        for i in range(
+            len(dimension_sizes) - 1,
+            -1,
+            -1
+        ):
+            coords[i] = (
+                n % dimension_sizes[i]
+            )
+            n //= dimension_sizes[i]
+
         return coords
 
     for flat_index, value in flat.items():
-        coords = unravel(int(flat_index), sizes)
+
+        coords = unravel(
+            int(flat_index),
+            sizes
+        )
+
         record = {
             "indicator": mapping["indicator"],
             "dataset_code": mapping["dataset_code"],
             "source": "Eurostat",
-            "source_url": BASE_URL + mapping["dataset_code"],
-            "verification_status": "VERIFIED_MAPPING",
+            "source_url": (
+                BASE_URL +
+                mapping["dataset_code"]
+            ),
+            "verification_status": (
+                "VERIFIED_MAPPING"
+            ),
             "data_status": "LIVE_CANDIDATE",
             "retrieved_at": retrieved_at,
-            "publication_date": payload.get("updated"),
+            "publication_date": payload.get(
+                "updated"
+            ),
         }
-        for dim, pos in zip(dims, coords):
-            record[dim] = dim_values[dim][pos]
+
+        for dim, pos in zip(
+            dims,
+            coords
+        ):
+            record[dim] = (
+                dim_values[dim][pos]
+            )
+
         record["value"] = value
-        record["unit"] = mapping.get("unit", "")
-        record["notes"] = "Retrieved directly from Eurostat Statistics API."
+        record["unit"] = mapping.get(
+            "unit",
+            ""
+        )
+        record["notes"] = (
+            "Retrieved directly from "
+            "Eurostat Statistics API."
+        )
+
         rows.append(record)
+
     return rows
+
 
 def main():
 
-    mappings = load_csv(MAPPING_FILE)
+    # -------------------------------------------------
+    # LOAD CONFIGURATION
+    # -------------------------------------------------
+
+    mappings = load_csv(
+        MAPPING_FILE
+    )
 
     countries = {
         r["iso2"].strip().upper()
@@ -105,23 +215,39 @@ def main():
 
     if not countries:
         raise SystemExit(
-            "No valid ISO2 countries found in countries.csv."
+            "No valid ISO2 countries found "
+            "in countries.csv."
         )
+
+    # -------------------------------------------------
+    # SELECT VERIFIED MAPPINGS
+    # -------------------------------------------------
 
     eligible = []
     skipped = []
 
     for m in mappings:
 
-        if m["status"].strip().upper() != "VERIFIED":
+        if (
+            m["status"]
+            .strip()
+            .upper()
+            != "VERIFIED"
+        ):
             skipped.append(
-                (m["indicator"], "mapping status is not VERIFIED")
+                (
+                    m["indicator"],
+                    "mapping status is not VERIFIED"
+                )
             )
             continue
 
         if not m["dataset_code"].strip():
             skipped.append(
-                (m["indicator"], "missing dataset_code")
+                (
+                    m["indicator"],
+                    "missing dataset_code"
+                )
             )
             continue
 
@@ -133,32 +259,55 @@ def main():
             "Update mappings.csv first."
         )
 
+    # -------------------------------------------------
+    # INITIALIZE RUN
+    # -------------------------------------------------
+
     all_rows = []
     errors = []
 
     retrieved_at = now_utc()
 
-    print("Europe Start Eurostat Data Engine")
-    print("---------------------------------")
-    print(f"Countries: {', '.join(sorted(countries))}")
-    print(f"Verified mappings: {len(eligible)}")
+    print(
+        "Europe Start Eurostat Data Engine"
+    )
+    print(
+        "---------------------------------"
+    )
+    print(
+        "Countries: "
+        + ", ".join(
+            sorted(countries)
+        )
+    )
+    print(
+        f"Verified mappings: {len(eligible)}"
+    )
     print()
+
+    # -------------------------------------------------
+    # FETCH EUROSTAT DATA
+    # -------------------------------------------------
 
     for m in eligible:
 
         try:
 
-            # query_params_json contains the exact
-            # verified Eurostat filters.
+            # Exact verified Eurostat filters.
             params = json.loads(
                 m["query_params_json"]
             )
 
-            params.setdefault("lang", "EN")
+            params.setdefault(
+                "lang",
+                "EN"
+            )
 
-            # Restrict the API request to the
+            # Restrict request to the
             # Europe Start controlled-test countries.
-            params["geo"] = sorted(countries)
+            params["geo"] = sorted(
+                countries
+            )
 
             payload = api_get(
                 m["dataset_code"],
@@ -170,27 +319,29 @@ def main():
                 m,
                 retrieved_at
             )
-            rows = jsonstat_to_rows(
-                payload,
-                m,
-                retrieved_at
-            )
 
             if not rows:
+
                 print(
-                    f"WARNING: {m['indicator']} "
+                    f"WARNING: "
+                    f"{m['indicator']} "
                     f"returned 0 parsed rows."
                 )
+
                 print(
-                    f"Dataset: {m['dataset_code']}"
+                    f"Dataset: "
+                    f"{m['dataset_code']}"
                 )
+
                 print(
                     f"Parameters: {params}"
                 )
 
             rows = [
-                r for r in rows
-                if r.get("geo") in countries
+                r
+                for r in rows
+                if r.get("geo")
+                in countries
             ]
 
             all_rows.extend(rows)
@@ -215,44 +366,54 @@ def main():
                 f"{m['dataset_code']}: {e}"
             )
 
-        except Exception as e:
+    # -------------------------------------------------
+    # QUALITY GATE
+    # -------------------------------------------------
 
-            errors.append(
-                (
-                    m["indicator"],
-                    str(e)
-                )
-            )
+    expected_indicators = {
+        m["indicator"]
+        for m in eligible
+    }
 
-            print(
-                f"ERR {m['indicator']} -> "
-                f"{m['dataset_code']}: {e}"
-            )
-expected_indicators = {
-    m["indicator"]
-    for m in eligible
-}
+    actual_indicators = {
+        r.get("indicator")
+        for r in all_rows
+    }
 
-actual_indicators = {
-    r.get("indicator")
-    for r in all_rows
-}
-
-missing_indicators = sorted(
-    expected_indicators - actual_indicators
-)
-
-if missing_indicators:
-    print()
-    print("QUALITY GATE: FAIL")
-    print(
-        "Missing indicators: "
-        + ", ".join(missing_indicators)
+    missing_indicators = sorted(
+        expected_indicators
+        - actual_indicators
     )
-else:
-    print()
-    print("QUALITY GATE: PASS")
-    # Generate CSV artifact.
+
+    if missing_indicators:
+
+        quality_gate = "FAIL"
+
+        print()
+        print(
+            "QUALITY GATE: FAIL"
+        )
+
+        print(
+            "Missing indicators: "
+            + ", ".join(
+                missing_indicators
+            )
+        )
+
+    else:
+
+        quality_gate = "PASS"
+
+        print()
+        print(
+            "QUALITY GATE: PASS"
+        )
+
+    # -------------------------------------------------
+    # GENERATE CSV
+    # -------------------------------------------------
+
     if all_rows:
 
         out = OUT_DIR / (
@@ -280,39 +441,59 @@ else:
             )
 
             writer.writeheader()
-            writer.writerows(all_rows)
+            writer.writerows(
+                all_rows
+            )
 
     else:
 
         out = None
 
-    # Generate run manifest.
-    manifest = OUT_DIR / "last_run_manifest.json"
+    # -------------------------------------------------
+    # GENERATE MANIFEST
+    # -------------------------------------------------
+
+    manifest = (
+        OUT_DIR /
+        "last_run_manifest.json"
+    )
 
     manifest.write_text(
         json.dumps(
             {
                 "engine_version": "0.2",
                 "retrieved_at": retrieved_at,
-                "source": "Eurostat Statistics API",
-                "countries": sorted(countries),
-                "verified_mappings_attempted": len(eligible),
-                "expected_indicators": sorted(expected_indicators),
-                "actual_indicators": sorted(actual_indicators),
-                "missing_indicators": missing_indicators,
-                "quality_gate": (
-                    "FAIL"
-                    if missing_indicators
-                    else "PASS"
+                "source": (
+                    "Eurostat Statistics API"
                 ),
-                "rows_written": len(all_rows),
+                "countries": sorted(
+                    countries
+                ),
+                "verified_mappings_attempted": (
+                    len(eligible)
+                ),
+                "expected_indicators": sorted(
+                    expected_indicators
+                ),
+                "actual_indicators": sorted(
+                    actual_indicators
+                ),
+                "missing_indicators": (
+                    missing_indicators
+                ),
+                "quality_gate": quality_gate,
+                "rows_written": len(
+                    all_rows
+                ),
                 "skipped": skipped,
                 "errors": errors,
-                "live_data_written_to_base44": False,
+                "live_data_written_to_base44": (
+                    False
+                ),
                 "note": (
-                    "This run creates an external "
-                    "import artifact; it does not "
-                    "modify Base44."
+                    "This run creates an "
+                    "external import artifact; "
+                    "it does not modify Base44."
                 )
             },
             indent=2,
@@ -321,16 +502,39 @@ else:
         encoding="utf-8"
     )
 
+    # -------------------------------------------------
+    # FINAL REPORT
+    # -------------------------------------------------
+
     print()
-    print("---------------------------------")
+    print(
+        "---------------------------------"
+    )
 
     if out:
-        print(f"Wrote: {out}")
-    else:
-        print("No CSV generated because no rows were returned.")
 
-    print(f"Rows: {len(all_rows)}")
-    print(f"Errors: {len(errors)}")
+        print(
+            f"Wrote: {out}"
+        )
+
+    else:
+
+        print(
+            "No CSV generated because "
+            "no rows were returned."
+        )
+
+    print(
+        f"Rows: {len(all_rows)}"
+    )
+
+    print(
+        f"Errors: {len(errors)}"
+    )
+
+    print(
+        f"Quality Gate: {quality_gate}"
+    )
 
     if errors:
         sys.exit(2)
