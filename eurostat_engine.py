@@ -118,9 +118,14 @@ def main():
     for m in eligible:
         try:
             # query_params_json contains the exact verified Eurostat filters.
-            params = json.loads(m["query_params_json"])
-            params.setdefault("lang", "EN")
-            payload = api_get(m["dataset_code"], params)
+           params = json.loads(m["query_params_json"])
+
+params.setdefault("lang", "EN")
+
+# Restrict the request to Europe Start controlled-test countries.
+params["geo"] = sorted(countries)
+
+payload = api_get(m["dataset_code"], params)
             rows = jsonstat_to_rows(payload, m, retrieved_at)
 
             # If geo exists, retain only Europe Start countries.
