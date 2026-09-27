@@ -1,0 +1,31 @@
+name: Europe Start Eurostat Update
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch Eurostat data
+        run: python eurostat_engine.py
+
+      - name: Upload Eurostat artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: europe-start-eurostat
+          path: output/
