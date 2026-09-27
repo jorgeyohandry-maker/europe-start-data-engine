@@ -209,7 +209,30 @@ if not rows:
                 f"ERR {m['indicator']} -> "
                 f"{m['dataset_code']}: {e}"
             )
+expected_indicators = {
+    m["indicator"]
+    for m in eligible
+}
 
+actual_indicators = {
+    r.get("indicator")
+    for r in all_rows
+}
+
+missing_indicators = sorted(
+    expected_indicators - actual_indicators
+)
+
+if missing_indicators:
+    print()
+    print("QUALITY GATE: FAIL")
+    print(
+        "Missing indicators: "
+        + ", ".join(missing_indicators)
+    )
+else:
+    print()
+    print("QUALITY GATE: PASS")
     # Generate CSV artifact.
     if all_rows:
 
