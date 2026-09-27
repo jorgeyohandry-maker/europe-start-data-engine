@@ -1,0 +1,12 @@
+indicator,dataset_code,status,unit,query_params_json
+unemployment_rate,une_rt_a,VERIFIED,% of labour force,"{""freq"":""A"",""age"":""Y15-74"",""unit"":""PC_ACT"",""sex"":""T""}"
+employment_rate,lfsi_emp_a,VERIFIED,% ,"{""freq"":""A"",""indic_em"":""EMP_LFS"",""age"":""Y20-64"",""unit"":""PC_POP"",""sex"":""T""}"
+job_vacancy_rate,jvs_q_nace2,VERIFIED,% ,"{""freq"":""Q"",""s_adj"":""NSA"",""nace_r2"":""B-S"",""sizeclas"":""TOTAL"",""indic_em"":""JVR""}"
+inflation_rate,prc_hicp_ainr,VERIFIED,% (annual),"{""freq"":""A"",""coicop18"":""CP00"",""unit"":""RCH_A_AVG""}"
+rent_index,prc_hicp_ainr,VERIFIED,index,"{""freq"":""A"",""coicop18"":""CP041"",""unit"":""INX_A_AVG""}"
+GDP_growth,nama_10_gdp,VERIFIED,% ,"{""freq"":""A"",""na_item"":""B1GQ"",""unit"":""CLV_PCH_PRE""}"
+GDP_per_capita,nama_10_pc,VERIFIED,EUR,"{""freq"":""A"",""na_item"":""B1GQ"",""unit"":""CP_EUR_HAB""}"
+actual_individual_consumption,prc_ppp_ind,VERIFIED,index (EU=100),"{""freq"":""A"",""na_item"":""VI_PPS_EU27_2020_HAB"",""ppp_cat"":""A01""}"
+price_level,prc_ppp_ind,VERIFIED,index (EU=100),"{""freq"":""A"",""na_item"":""PLI_EU27_2020"",""ppp_cat"":""A01""}"
+house_price_index,prc_hpi_q,VERIFIED,index,"{""freq"":""Q"",""purchase"":""TOTAL"",""unit"":""I15_Q""}"
+population,demo_pjan,VERIFIED,count,"{""freq"":""A"",""unit"":""NR"",""age"":""TOTAL"",""sex"":""T""}"

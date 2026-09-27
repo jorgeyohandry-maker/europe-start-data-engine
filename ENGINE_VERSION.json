@@ -1,0 +1,8 @@
+{
+  "version": "0.2",
+  "mapping_count": 11,
+  "mapping_status": "VERIFIED_BY_BASE44",
+  "controlled_test_countries": ["ES", "DE", "FR", "IT", "PT"],
+  "base44_write_enabled": false,
+  "workflow_path": ".github/workflows/eurostat.yml"
+}
